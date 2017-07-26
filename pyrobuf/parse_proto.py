@@ -40,7 +40,7 @@ class Parser(object):
         'sfixed32': 'Int32List',
         'uint32':   'Uint32List',
         'fixed32':  'Uint32List',
-        'bool':     'Uint32List',
+        'bool':     'BoolList',
         'int64':    'Int64List',
         'sint64':   'Int64List',
         'sfixed64': 'Int64List',
@@ -63,13 +63,13 @@ class Parser(object):
         'sfixed64': 'int64_t',
         'uint64':   'uint64_t',
         'fixed64':  'uint64_t',
-        'bool':     'uint32_t',
+        'bool':     'bint',
         'enum':     'int32_t',
         'timestamp':'uint32_t'
     }
 
     getter_map = {
-        'bool':     'get_varint32',
+        'bool':     'get_varbool',
         'enum':     'get_varint32',
         'int32':    'get_varint32',
         'sint32':   'get_signed_varint32',
@@ -80,7 +80,7 @@ class Parser(object):
     }
 
     setter_map = {
-        'bool':     'set_varint32',
+        'bool':     'set_varbool',
         'enum':     'set_varint32',
         'int32':    'set_varint32',
         'sint32':   'set_signed_varint32',

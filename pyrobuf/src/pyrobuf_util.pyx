@@ -43,6 +43,28 @@ cdef safe_dup(const unsigned char *source, size_t max_len):
     return s
 
 
+cdef bint get_varbool(const unsigned char *varint, int *offset):
+    """
+    Deserialize a protobuf varint starting from give offset in memory; update
+    offset based on number of bytes consumed.
+    """
+    cdef int32_t value = 0
+    cdef int32_t base = 1
+    cdef int index = 0
+    cdef int val_byte
+
+    while True:
+        val_byte = varint[offset[0] + index]
+        value += (val_byte & 0x7F) * base
+        if (val_byte & 0x80):
+            base *= 128
+            index += 1
+        else:
+            offset[0] += (index + 1)
+            if value == 0:
+                return False
+            return True
+
 cdef int32_t get_varint32(const unsigned char *varint, int *offset):
     """
     Deserialize a protobuf varint starting from give offset in memory; update
@@ -141,6 +163,29 @@ def get_signed_varint(data, offset=0):
     cdef int _offset = offset
     return get_signed_varint64(data, &_offset)
 
+cdef int set_varbool(bint varbool, bytearray buf):
+    """
+    Serialize an bool into a protobuf varbool; return the number of bytes
+    serialized.
+    """
+
+	# Negative numbers are always 10 bytes, so we need a uint64_t to
+    # facilitate encoding
+    cdef int varint = 0
+    if varbool:
+        varint = 1
+
+    cdef uint64_t enc = varint
+    cdef uint8_t bits = enc & 0x7f
+    enc >>= 7
+    cdef int idx = 1
+    while enc:
+        buf.append(<unsigned char>(0x80|bits))
+        bits = enc & 0x7f
+        enc >>= 7
+        idx += 1
+    buf.append(<unsigned char>bits)
+    return idx + 1
 
 cdef int set_varint32(int32_t varint, bytearray buf):
     """
