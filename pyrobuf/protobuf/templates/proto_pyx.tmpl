@@ -952,6 +952,175 @@ cdef class {{ message.full_name }}:
 
         return out
 
+    def ProtobufDeserializeToDict(self, const unsigned char *memory, int size):
+        out = {}
+        cdef int current_offset = 0
+        cdef int64_t key
+        cdef int64_t field_idx
+    {%- if message.fields|selectattr('type', 'equalto', 'message')|first is defined or
+           message.fields|selectattr('type', 'equalto', 'string')|first is defined or
+           message.fields|selectattr('type', 'equalto', 'bytes')|first is defined %}
+        cdef int64_t field_size
+    {%- endif %}
+        # cdef int wire_type
+
+    {%- for field in message.fields|sort(attribute='index') %}
+        {%- if field.modifier == 'repeated' and field.packed|default(false) == true %}
+        cdef int64_t {{ field.name }}_marker
+        {%- endif %}
+        {%- if field.modifier == 'repeated' %}
+            {%- if field.type == 'message' %}
+        cdef {{ field.message_name }} {{ field.name }}_elt
+            {%- elif field.type == 'string' %}
+        cdef {% if version_major == 2 %}unicode{% else %}str{% endif %} {{ field.name }}_elt
+            {%- elif field.type == 'bytes' %}
+        cdef bytes {{ field.name }}_elt
+            {%- else  %}
+        cdef {{ field.c_type }} {{ field.name }}_elt
+            {%- endif %}
+        {%- endif %}
+    {%- endfor %}
+
+    {% if message.fields|count > 0 %}
+        while current_offset < size:
+            key = get_varint64(memory, &current_offset)
+            field_idx = (key >> 3)
+            # wire_type = (key & 0x7)
+
+    {%- for field in message.fields|sort(attribute='index') %}
+            # {{ field.name }}
+        {%- if loop.index == 1 %}
+            if field_idx == {{ field.index }}:
+        {%- else %}
+            elif field_idx == {{ field.index }}:
+        {%- endif %}
+
+        {%- if field.modifier != 'repeated' and field.type != 'message' and field.type != 'enum' %}
+                # self._{{field.name}}_isSet = True
+        {%- endif %}
+
+        {%- if field.modifier == 'repeated' %}
+            {%- if field.packed|default(false) == true %}
+                {{ field.name }}_marker = get_varint64(memory, &current_offset)
+                {{ field.name }}_marker += current_offset
+
+                while current_offset < <int>{{ field.name }}_marker:
+                {%- if field.fixed_width == true %}
+                    {{ field.name }}_elt = (<{{ field.c_type }} *>&memory[current_offset])[0]
+                    current_offset += sizeof({{ field.c_type }})
+                {%- elif field.var_width == true %}
+                    {{ field.name }}_elt = {{ field.getter }}(memory, current_offset)
+                {%- endif %}
+                    out["{{ field.name }}"].append({{ field.name }}_elt)
+                    # self._{{ field.name }}._append({{ field.name }}_elt)
+            {%- else %}
+                {%- if field.type == 'message' %}
+                {{ field.name }}_elt = {{ field.message_name }}.__new__({{ field.message_name }})
+                {{ field.name }}_elt.reset()
+                field_size = get_varint64(memory, &current_offset)
+                current_offset += {{ field.name }}_elt._protobuf_deserialize(memory+current_offset, <int>field_size)
+                {%- elif field.type == 'string' %}
+                field_size = get_varint64(memory, &current_offset)
+                    {%- if version_major == 2 %}
+                {{ field.name }}_elt = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
+                    {%- else %}
+                {{ field.name }}_elt = str(memory[current_offset:current_offset + field_size], 'utf-8')
+                    {%- endif %}
+                current_offset += <int>field_size
+                {%- elif field.type == 'bytes' %}
+                field_size = get_varint64(memory, &current_offset)
+                {{ field.name }}_elt = memory[current_offset:current_offset + field_size]
+                current_offset += <int>field_size
+                {%- elif field.fixed_width == true %}
+                {{ field.name }}_elt = (<{{ field.c_type }} *>&memory[current_offset])[0]
+                current_offset += sizeof({{ field.c_type }})
+                {%- elif field.var_width == true %}
+                {{ field.name }}_elt = {{ field.getter }}(memory, current_offset)
+                {%- endif %}
+                {%- if field.type != 'message' and field.type not in ('string', 'bytes') %}
+                out["{{ field.name }}"].append({{ field.name }}_elt)
+                # self._{{ field.name }}._append({{ field.name }}_elt)
+                {%- else %}
+                list.append({{ field.name }}, {{ field.name }}_elt)
+                # list.append(self._{{ field.name }}, {{ field.name }}_elt)
+                {%- endif %}
+            {%- endif %}
+
+        {%- elif field.type == 'message' %}
+                field_size = get_varint64(memory, &current_offset)
+                out["{{ field.name }}"], conf = self._{{ field.name }}.ProtobufDeserializeToDict(memory+current_offset, <int>field_size)
+                current_offset += cof
+                # current_offset += self._{{ field.name }}.ProtobufDeserializeToDict( memory+current_offset, <int>field_size)
+
+        {%- elif field.type == 'string' %}
+                field_size = get_varint64(memory, &current_offset)
+            {%- if version_major == 2 %}
+                out["{{ field.name }}"] = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
+                # self._{{ field.name }} = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
+            {%- else %}
+                out["{{ field.name }}"] =  str(memory[current_offset:current_offset + field_size], 'utf-8')
+                # self._{{ field.name }} = str(memory[current_offset:current_offset + field_size], 'utf-8')
+            {%- endif %}
+                current_offset += <int>field_size
+
+        {%- elif field.type == 'bytes' %}
+                field_size = get_varint64(memory, &current_offset)
+                out["{{ field.name }}"] = memory[current_offset:current_offset + field_size]
+                # self._{{ field.name }} = memory[current_offset:current_offset + field_size]
+                current_offset += <int>field_size
+
+        {%- elif field.type == 'enum' %}
+                out["{{ field.name }}"] = {{ field.getter }}(memory, &current_offset)
+                # self.{{ field.name }} = {{ field.getter }}(memory, &current_offset)
+
+        {%- elif field.fixed_width == true %}
+                out["{{ field.name }}"] = (<{{ field.c_type }} *>&memory[current_offset])[0]
+                # self._{{ field.name }} = (<{{ field.c_type }} *>&memory[current_offset])[0]
+                current_offset += sizeof({{ field.c_type }})
+
+        {%- elif field.var_width == true %}
+                out["{{ field.name }}"] = {{ field.getter }}(memory, &current_offset)
+                # self._{{ field.name }} = {{ field.getter }}(memory, &current_offset)
+
+        {%- endif %}
+
+    {%- endfor %}
+    {%- endif %}
+
+        self._is_present_in_parent = True
+
+        return out, current_offset
+
+    def ParseFromStringToDict(self, data, size=None, bint reset=True):
+        """
+        Populate the message class from a string of protobuf encoded binary data into a Python dictionary.
+
+        Params:
+            data (bytes): a string of binary data
+            size (int): optional - the length of the data string
+            reset (bool): optional - whether to reset to default values before serializing
+
+        Returns:
+            dict: a Python dictionary representing the message
+        """
+        cdef int length
+        cdef bint already_present_in_parent = self._is_present_in_parent
+
+        length = size if size is not None else len(data)
+
+        if reset:
+            self.reset()
+
+        out, buf = self.ProtobufDeserializeToDict(data, length)
+
+        if buf != length:
+            raise DecodeError("Truncated message")
+
+        if not already_present_in_parent:
+            self._Modified()
+
+        return out
+
     {% for message_enum_name, message_enum in message.enums.items() %}
         {{ message_enum_fields_def(message_enum) }}
     {% endfor %}
