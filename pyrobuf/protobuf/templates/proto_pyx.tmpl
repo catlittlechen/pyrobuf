@@ -1041,14 +1041,15 @@ cdef class {{ message.full_name }}:
                 out["{{ field.name }}"].append({{ field.name }}_elt)
                 # self._{{ field.name }}._append({{ field.name }}_elt)
                 {%- else %}
-                list.append({{ field.name }}, {{ field.name }}_elt)
+                out.setdefault("{{ field.name }}", [])
+                out["{{ field.name }}"].append({{ field.name }}_elt)
                 # list.append(self._{{ field.name }}, {{ field.name }}_elt)
                 {%- endif %}
             {%- endif %}
 
         {%- elif field.type == 'message' %}
                 field_size = get_varint64(memory, &current_offset)
-                out["{{ field.name }}"], conf = self._{{ field.name }}.ProtobufDeserializeToDict(memory+current_offset, <int>field_size)
+                out["{{ field.name }}"], cof = self._{{ field.name }}.ProtobufDeserializeToDict(memory+current_offset, <int>field_size)
                 current_offset += cof
                 # current_offset += self._{{ field.name }}.ProtobufDeserializeToDict( memory+current_offset, <int>field_size)
 
