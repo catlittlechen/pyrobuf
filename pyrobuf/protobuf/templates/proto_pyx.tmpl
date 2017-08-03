@@ -318,7 +318,8 @@ cdef class {{ message.full_name }}:
                 {{ field.name }}_elt = {{ field.message_name }}.__new__({{ field.message_name }})
                 {{ field.name }}_elt.reset()
                 field_size = get_varint64(memory, &current_offset)
-                current_offset += {{ field.name }}_elt._protobuf_deserialize(memory+current_offset, <int>field_size)
+                field_size = {{ field.name }}_elt._protobuf_deserialize(memory+current_offset, <int>field_size)
+                current_offset += field_size
                 {%- elif field.type == 'string' %}
                 field_size = get_varint64(memory, &current_offset)
                     {%- if version_major == 2 %}
@@ -346,7 +347,8 @@ cdef class {{ message.full_name }}:
 
         {%- elif field.type == 'message' %}
                 field_size = get_varint64(memory, &current_offset)
-                current_offset += self._{{ field.name }}._protobuf_deserialize(memory+current_offset, <int>field_size)
+                field_size = self._{{ field.name }}._protobuf_deserialize(memory+current_offset, <int>field_size)
+                current_offset += field_size
 
         {%- elif field.type == 'string' %}
                 field_size = get_varint64(memory, &current_offset)
@@ -962,7 +964,6 @@ cdef class {{ message.full_name }}:
            message.fields|selectattr('type', 'equalto', 'bytes')|first is defined %}
         cdef int64_t field_size
     {%- endif %}
-        # cdef int wire_type
 
     {%- for field in message.fields|sort(attribute='index') %}
         {%- if field.modifier == 'repeated' and field.packed|default(false) == true %}
@@ -970,13 +971,13 @@ cdef class {{ message.full_name }}:
         {%- endif %}
         {%- if field.modifier == 'repeated' %}
             {%- if field.type == 'message' %}
-        cdef {{ field.message_name }} {{ field.name }}_elt
+        cdef {{ field.message_name }} {{ field.name }}_elt_out
             {%- elif field.type == 'string' %}
         cdef {% if version_major == 2 %}unicode{% else %}str{% endif %} {{ field.name }}_elt
             {%- elif field.type == 'bytes' %}
         cdef bytes {{ field.name }}_elt
             {%- else  %}
-        cdef {{ field.c_type }} {{ field.name }}_elt
+        cdef {{ field.c_type }} {{ field.name }}_elt_out
             {%- endif %}
         {%- endif %}
     {%- endfor %}
@@ -985,7 +986,6 @@ cdef class {{ message.full_name }}:
         while current_offset < size:
             key = get_varint64(memory, &current_offset)
             field_idx = (key >> 3)
-            # wire_type = (key & 0x7)
 
     {%- for field in message.fields|sort(attribute='index') %}
             # {{ field.name }}
@@ -993,10 +993,6 @@ cdef class {{ message.full_name }}:
             if field_idx == {{ field.index }}:
         {%- else %}
             elif field_idx == {{ field.index }}:
-        {%- endif %}
-
-        {%- if field.modifier != 'repeated' and field.type != 'message' and field.type != 'enum' %}
-                # self._{{field.name}}_isSet = True
         {%- endif %}
 
         {%- if field.modifier == 'repeated' %}
@@ -1009,16 +1005,19 @@ cdef class {{ message.full_name }}:
                     {{ field.name }}_elt = (<{{ field.c_type }} *>&memory[current_offset])[0]
                     current_offset += sizeof({{ field.c_type }})
                 {%- elif field.var_width == true %}
-                    {{ field.name }}_elt = {{ field.getter }}(memory, current_offset)
+                    {{ field.name }}_elt = {{ field.getter }}(memory, &current_offset)
                 {%- endif %}
+                    out.setdefault("{{ field.name }}", [])
                     out["{{ field.name }}"].append({{ field.name }}_elt)
-                    # self._{{ field.name }}._append({{ field.name }}_elt)
             {%- else %}
                 {%- if field.type == 'message' %}
-                {{ field.name }}_elt = {{ field.message_name }}.__new__({{ field.message_name }})
-                {{ field.name }}_elt.reset()
+                {{ field.name }}_elt_obj = {{ field.message_name }}.__new__({{ field.message_name }})
+                {{ field.name }}_elt_obj.reset()
                 field_size = get_varint64(memory, &current_offset)
-                current_offset += {{ field.name }}_elt._protobuf_deserialize(memory+current_offset, <int>field_size)
+                {{ field.name }}_elt, field_size = {{ field.name }}_elt_obj.ProtobufDeserializeToDict(memory[current_offset:current_offset+field_size], <int>field_size)
+
+                current_offset += field_size
+
                 {%- elif field.type == 'string' %}
                 field_size = get_varint64(memory, &current_offset)
                     {%- if version_major == 2 %}
@@ -1027,61 +1026,51 @@ cdef class {{ message.full_name }}:
                 {{ field.name }}_elt = str(memory[current_offset:current_offset + field_size], 'utf-8')
                     {%- endif %}
                 current_offset += <int>field_size
+
                 {%- elif field.type == 'bytes' %}
                 field_size = get_varint64(memory, &current_offset)
                 {{ field.name }}_elt = memory[current_offset:current_offset + field_size]
                 current_offset += <int>field_size
+
                 {%- elif field.fixed_width == true %}
                 {{ field.name }}_elt = (<{{ field.c_type }} *>&memory[current_offset])[0]
                 current_offset += sizeof({{ field.c_type }})
+
                 {%- elif field.var_width == true %}
-                {{ field.name }}_elt = {{ field.getter }}(memory, current_offset)
+                {{ field.name }}_elt = {{ field.getter }}(memory, &current_offset)
                 {%- endif %}
-                {%- if field.type != 'message' and field.type not in ('string', 'bytes') %}
-                out["{{ field.name }}"].append({{ field.name }}_elt)
-                # self._{{ field.name }}._append({{ field.name }}_elt)
-                {%- else %}
                 out.setdefault("{{ field.name }}", [])
                 out["{{ field.name }}"].append({{ field.name }}_elt)
-                # list.append(self._{{ field.name }}, {{ field.name }}_elt)
-                {%- endif %}
             {%- endif %}
 
         {%- elif field.type == 'message' %}
                 field_size = get_varint64(memory, &current_offset)
-                out["{{ field.name }}"], cof = self._{{ field.name }}.ProtobufDeserializeToDict(memory+current_offset, <int>field_size)
-                current_offset += cof
-                # current_offset += self._{{ field.name }}.ProtobufDeserializeToDict( memory+current_offset, <int>field_size)
+                out["{{ field.name }}"], field_size = self._{{ field.name }}.ProtobufDeserializeToDict(memory[current_offset:current_offset+field_size], <int>field_size)
+                current_offset += field_size
 
         {%- elif field.type == 'string' %}
                 field_size = get_varint64(memory, &current_offset)
             {%- if version_major == 2 %}
                 out["{{ field.name }}"] = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
-                # self._{{ field.name }} = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
             {%- else %}
-                out["{{ field.name }}"] =  str(memory[current_offset:current_offset + field_size], 'utf-8')
-                # self._{{ field.name }} = str(memory[current_offset:current_offset + field_size], 'utf-8')
+                out["{{ field.name }}"] = str(memory[current_offset:current_offset + field_size], 'utf-8')
             {%- endif %}
                 current_offset += <int>field_size
 
         {%- elif field.type == 'bytes' %}
                 field_size = get_varint64(memory, &current_offset)
                 out["{{ field.name }}"] = memory[current_offset:current_offset + field_size]
-                # self._{{ field.name }} = memory[current_offset:current_offset + field_size]
                 current_offset += <int>field_size
 
         {%- elif field.type == 'enum' %}
                 out["{{ field.name }}"] = {{ field.getter }}(memory, &current_offset)
-                # self.{{ field.name }} = {{ field.getter }}(memory, &current_offset)
 
         {%- elif field.fixed_width == true %}
                 out["{{ field.name }}"] = (<{{ field.c_type }} *>&memory[current_offset])[0]
-                # self._{{ field.name }} = (<{{ field.c_type }} *>&memory[current_offset])[0]
                 current_offset += sizeof({{ field.c_type }})
 
         {%- elif field.var_width == true %}
                 out["{{ field.name }}"] = {{ field.getter }}(memory, &current_offset)
-                # self._{{ field.name }} = {{ field.getter }}(memory, &current_offset)
 
         {%- endif %}
 
@@ -1091,6 +1080,8 @@ cdef class {{ message.full_name }}:
         self._is_present_in_parent = True
 
         return out, current_offset
+
+
 
     def ParseFromStringToDict(self, data, size=None, bint reset=True):
         """
@@ -1104,6 +1095,7 @@ cdef class {{ message.full_name }}:
         Returns:
             dict: a Python dictionary representing the message
         """
+        cdef int buf
         cdef int length
         cdef bint already_present_in_parent = self._is_present_in_parent
 

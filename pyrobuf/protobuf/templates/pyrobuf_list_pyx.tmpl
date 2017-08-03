@@ -401,7 +401,7 @@ cdef class {{ name }}:
         return str(list(self))
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
-        
+
         cdef Py_ssize_t itemsize = sizeof({{ type }})
         self.shape[0] = self._n_items
         self.strides[0] = 1
@@ -487,7 +487,7 @@ cdef class {{ name }}:
 
         for j in range(i, self._n_items):
             self._data[j] = self._data[j + 1]
-        
+
         self._n_items -= 1
         listener = <object>self._listener
         if not listener._is_present_in_parent:

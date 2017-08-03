@@ -14,7 +14,6 @@ cdef int32_t get_signed_varint32(const unsigned char *memory, int *offset)
 
 cdef int64_t get_signed_varint64(const unsigned char *memory, int *offset)
 
-
 cdef int set_varbool(bint varbool, bytearray buf)
 
 cdef int set_varint32(int32_t varint, bytearray buf)
