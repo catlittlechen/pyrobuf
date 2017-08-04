@@ -174,6 +174,18 @@ Python dictionaries:
 >>> test.ParseFromDict({'field': 5, 'list_fieldx': [12], 'req_field': 2, 'string_field': 'hello!', 'test_ref': {'field2': 3.14}})
 ```
 
+Then, Pyrobuf also allows us to deserialize from string to the nativa Python dictionaries:
+```
+>>> test.ParseFromString('\x10\x05\x1a\x06hello! \x0c2\t\x19\x1f\x85\xebQ\xb8\x1e\t@P\x02')
+{'field': 5,
+ 'list_fieldx': [12],
+ 'req_field': 2,
+ 'string_field': 'hello!',
+ 'test_ref': {'field2': 3.14}}
+```
+
+
+
 Finally, the `pyrobuf_util` module contains functions for encoding and decoding integers.
 
 ```
