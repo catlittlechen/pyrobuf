@@ -254,7 +254,7 @@ cdef class {{ message.full_name }}:
                 self._Modified()
     {% endfor %}
 
-    cdef int _protobuf_deserialize(self, const unsigned char *memory, int size):
+    cdef int _protobuf_deserialize(self, const unsigned char *memory, int size) except -1:
         cdef int current_offset = 0
         cdef int64_t key
         cdef int64_t field_idx

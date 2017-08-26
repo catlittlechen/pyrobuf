@@ -52,7 +52,7 @@ cdef class {{ message.full_name }}:
     cpdef int ParseFromString(self, data, size=*, bint reset=*) except -1
     cpdef bytes SerializePartialToString(self)
 
-    cdef int _protobuf_deserialize(self, const unsigned char *memory, int size)
+    cdef int _protobuf_deserialize(self, const unsigned char *memory, int size) except -1
 
     cdef void _protobuf_serialize(self, bytearray buf)
 
