@@ -192,12 +192,20 @@ cdef class {{ message.full_name }}:
                 if isinstance(val, unicode):
                     list.append(self._{{ field.name }}, val)
                 elif isinstance(val, str):
-                    list.append(self._{{ field.name }}, unicode(val, 'utf-8'))
+                    try:
+                        list.append(self._{{ field.name }}, unicode(val, 'utf-8'))
+                    except:
+                        list.append(self._{{ field.name }}, u'')
+                        pass
                 else:
                     raise TypeError("%r has type %s, but expected one of: (%s, %s)" % (val, type(val), str, unicode))
             {%- elif field.type == 'string' and version_major != 2 %}
                 if isinstance(val, bytes):
-                    list.append(self._{{ field.name }}, val.decode('utf-8'))
+                    try:
+                        list.append(self._{{ field.name }}, val.decode('utf-8'))
+                    except:
+                        list.append(self._{{ field.name }}, "")
+                        pass
                 elif isinstance(val, str):
                     list.append(self._{{ field.name }}, val)
                 else:
@@ -228,12 +236,20 @@ cdef class {{ message.full_name }}:
             if isinstance(value, unicode):
                 self._{{ field.name }} = value
             elif isinstance(value, str):
-                self._{{ field.name }} = unicode(value, 'utf-8')
+                try:
+                    self._{{ field.name }} = unicode(value, 'utf-8')
+                except:
+                    self._{{ field.name }} = u''
+                    pass
             else:
                 raise TypeError("%r has type %s, but expected one of: (%s, %s)" % (value, type(value), unicode, str))
             {%- elif field.type == 'string' and version_major != 2 %}
             if isinstance(value, bytes):
-                self._{{ field.name }} = value.decode('utf-8')
+                try:
+                    self._{{ field.name }} = value.decode('utf-8')
+                except:
+                    self._{{ field.name }} = ""
+                    pass
             elif isinstance(value, str):
                 self._{{ field.name }} = value
             else:
@@ -322,11 +338,19 @@ cdef class {{ message.full_name }}:
                 current_offset += field_size
                 {%- elif field.type == 'string' %}
                 field_size = get_varint64(memory, &current_offset)
-                    {%- if version_major == 2 %}
-                {{ field.name }}_elt = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
-                    {%- else %}
-                {{ field.name }}_elt = str(memory[current_offset:current_offset + field_size], 'utf-8')
-                    {%- endif %}
+                {%- if version_major == 2 %}
+                try:
+                    {{ field.name }}_elt = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
+                except:
+                    {{ field.name }}_elt = u''
+                    pass
+                {%- else %}
+                try:
+                    {{ field.name }}_elt = str(memory[current_offset:current_offset + field_size], 'utf-8')
+                except:
+                    {{ field.name }}_elt = ""
+                    pass
+                {%- endif %}
                 current_offset += <int>field_size
                 {%- elif field.type == 'bytes' %}
                 field_size = get_varint64(memory, &current_offset)
@@ -352,11 +376,19 @@ cdef class {{ message.full_name }}:
 
         {%- elif field.type == 'string' %}
                 field_size = get_varint64(memory, &current_offset)
-            {%- if version_major == 2 %}
-                self._{{ field.name }} = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
-            {%- else %}
-                self._{{ field.name }} = str(memory[current_offset:current_offset + field_size], 'utf-8')
-            {%- endif %}
+                {%- if version_major == 2 %}
+                try:
+                    self._{{ field.name }} = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
+                except:
+                    self._{{ field.name }} = u''
+                    pass
+                {%- else %}
+                try:
+                    self._{{ field.name }} = str(memory[current_offset:current_offset + field_size], 'utf-8')
+                except:
+                    self._{{ field.name }} = ""
+                    pass
+                {%- endif %}
                 current_offset += <int>field_size
 
         {%- elif field.type == 'bytes' %}
@@ -610,8 +642,8 @@ cdef class {{ message.full_name }}:
 
         buf = self._protobuf_deserialize(data, length)
 
-        if buf != length:
-            raise DecodeError("Truncated message")
+        #if buf != length:
+        #    raise DecodeError("Truncated message")
 
         if not already_present_in_parent:
             self._Modified()
@@ -914,7 +946,11 @@ cdef class {{ message.full_name }}:
             out["{{ field.name }}"] = {{ field.name }}_dict
         {%- elif field.type == 'bytes' %}
         if self._{{ field.name }}_isSet:
-            out["{{ field.name }}"] = self.{{ field.name }}.decode('utf-8')
+            try:
+                out["{{ field.name }}"] = self.{{ field.name }}.decode('utf-8')
+            except:
+                out["{{ field.name }}"] = ""
+                pass
         {%- else %}
         if self._{{ field.name }}_isSet:
             out["{{ field.name }}"] = self.{{ field.name }}
@@ -945,7 +981,11 @@ cdef class {{ message.full_name }}:
             out["{{ field.name }}"] = {{ field.name }}_dict
         {%- elif field.type == 'bytes' %}
         if self._{{ field.name }}_isSet:
-            out["{{ field.name }}"] = self.{{ field.name }}.decode('utf-8')
+            try:
+                out["{{ field.name }}"] = self.{{ field.name }}.decode('utf-8')
+            except:
+                out["{{ field.name }}"] = ""
+                pass
         {%- else %}
         if self._{{ field.name }}_isSet:
             out["{{ field.name }}"] = self.{{ field.name }}
@@ -1020,11 +1060,19 @@ cdef class {{ message.full_name }}:
 
                 {%- elif field.type == 'string' %}
                 field_size = get_varint64(memory, &current_offset)
-                    {%- if version_major == 2 %}
-                {{ field.name }}_elt = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
-                    {%- else %}
-                {{ field.name }}_elt = str(memory[current_offset:current_offset + field_size], 'utf-8')
-                    {%- endif %}
+                {%- if version_major == 2 %}
+                try:
+                    {{ field.name }}_elt = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
+                except:
+                    {{ field.name }}_elt = u''
+                    pass
+                {%- else %}
+                try:
+                    {{ field.name }}_elt = str(memory[current_offset:current_offset + field_size], 'utf-8')
+                except:
+                    {{ field.name }}_elt = ""
+                    pass
+                {%- endif %}
                 current_offset += <int>field_size
 
                 {%- elif field.type == 'bytes' %}
@@ -1050,11 +1098,19 @@ cdef class {{ message.full_name }}:
 
         {%- elif field.type == 'string' %}
                 field_size = get_varint64(memory, &current_offset)
-            {%- if version_major == 2 %}
-                out["{{ field.name }}"] = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
-            {%- else %}
-                out["{{ field.name }}"] = str(memory[current_offset:current_offset + field_size], 'utf-8')
-            {%- endif %}
+                {%- if version_major == 2 %}
+                try:
+                    out["{{ field.name }}"] = unicode(memory[current_offset:current_offset + field_size], 'utf-8')
+                except:
+                    out["{{ field.name }}"] = u''
+                    pass
+                {%- else %}
+                try:
+                    out["{{ field.name }}"] = str(memory[current_offset:current_offset + field_size], 'utf-8')
+                except:
+                    out["{{ field.name }}"] = ""
+                    pass
+                {%- endif %}
                 current_offset += <int>field_size
 
         {%- elif field.type == 'bytes' %}
